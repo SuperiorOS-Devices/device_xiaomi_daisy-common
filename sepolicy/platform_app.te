@@ -1,2 +1,0 @@
-allow platform_app device:chr_file { ioctl };
-allow platform_app device:chr_file { read write }; 

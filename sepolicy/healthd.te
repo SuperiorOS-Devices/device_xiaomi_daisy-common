@@ -1,3 +1,0 @@
-allow healthd sysfs:file { getattr };
-allow healthd sysfs:file { open };
-allow healthd sysfs:file { read };

@@ -1,1 +1,0 @@
-allow radio init:binder { call };

@@ -1,2 +1,0 @@
-allow untrusted_app device:chr_file { ioctl };
-allow untrusted_app device:chr_file { read write }; 
