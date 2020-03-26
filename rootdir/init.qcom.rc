@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2012, 2014-2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2009-2012, 2014-2019, The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -54,9 +54,13 @@ on early-boot
     # set RLIMIT_MEMLOCK to 64MB
     setrlimit 8 67108864 67108864
     # Allow subsystem (modem etc) debugging
+    write /sys/kernel/debug/bootkpi/kpi_values "M - Start adsp"
     write /sys/kernel/boot_adsp/boot 1
     write /sys/kernel/boot_cdsp/boot 1
+    write /sys/devices/virtual/npu/msm_npu/boot 1
     write /sys/kernel/boot_slpi/boot 1
+    write /sys/devices/virtual/cvp/cvp/boot 1
+    exec u:r:qti_init_shell:s0 -- /vendor/bin/init.qcom.early_boot.sh
 
     # for backward compatibility
     chown system system /persist/sensors
@@ -77,6 +81,9 @@ on early-boot
     chown system system /mnt/vendor/persist/sensors/registry/sns_reg_config
     chown system system /mnt/vendor/persist/sensors/registry/config
     chmod 0664 /mnt/vendor/persist/sensors/sensors_settings
+
+    chown system system /mnt/vendor/persist/data/pfm/licenses
+    chmod 0775 /mnt/vendor/persist/data/pfm/licenses
 
     # Graphics
     chown system graphics /sys/class/graphics/fb0/idle_time
@@ -105,6 +112,7 @@ on boot
     chown bluetooth bluetooth /sys/module/hci_uart/parameters/ath_btwrite
     chown system system /sys/module/sco/parameters/disable_esco
     chown bluetooth bluetooth /sys/module/hci_smd/parameters/hcismd_set
+    chown system system /sys/module/radio_iris_transport/parameters/fmsmd_set
     chown system system /sys/module/msm_core/parameters/polling_interval
     chown system system /sys/module/msm_core/parameters/disabled
     chown system system /sys/kernel/debug/msm_core/enable
@@ -113,6 +121,7 @@ on boot
     chown system system /sys/kernel/boot_adsp/ssr
     chmod 0660 /sys/module/bluetooth_power/parameters/power
     chmod 0660 /sys/module/hci_smd/parameters/hcismd_set
+    chmod 0660 /sys/module/radio_iris_transport/parameters/fmsmd_set
     chmod 0660 /sys/class/rfkill/rfkill0/state
     chmod 0660 /proc/bluetooth/sleep/proto
     chown bluetooth net_bt /dev/ttyHS0
@@ -128,7 +137,9 @@ on boot
     chown bluetooth net_bt /sys/class/rfkill/rfkill0/device/extldo
     chmod 0660 /sys/class/rfkill/rfkill0/device/extldo
 
-    #Create QMUX deamon socket area
+    # This location is used by QCRIL to host UNIX domain
+    # socket files used for internal IPC within QCRIL
+    # modules
     mkdir /dev/socket/qmux_radio 0770 radio radio
     chmod 2770 /dev/socket/qmux_radio
     mkdir /dev/socket/qmux_audio 0770 media audio
@@ -144,8 +155,10 @@ on boot
     mkdir /persist/alarm 0770 system system
     mkdir /mnt/vendor/persist/time 0770 system system
     mkdir /mnt/vendor/persist/secnvm 0770 system system
+    mkdir /mnt/vendor/persist/iar_db 0770 system system
+    mkdir /mnt/vendor/spunvm 0770 system system
     restorecon_recursive /mnt/vendor/persist
-
+    
     #Create NETMGR daemon socket area
     mkdir /dev/socket/netmgr 0750 radio radio
 
@@ -154,9 +167,9 @@ on boot
 
 
     chmod 0444 /sys/devices/platform/msm_hsusb/gadget/usb_state
-
-#   Assign TCP buffer thresholds to be ceiling value of technology maximums
-#   Increased technology maximums should be reflected here.
+    
+    #   Assign TCP buffer thresholds to be ceiling value of technology maximums
+    #   Increased technology maximums should be reflected here.
     write /proc/sys/net/core/rmem_max  8388608
     write /proc/sys/net/core/wmem_max  8388608
 
@@ -178,6 +191,14 @@ on boot
     # bond0 used by FST Manager
     chown wifi wifi /sys/class/net/bond0/bonding/queue_id
 
+    # Notification LED
+    chown system system /sys/class/leds/red/blink
+    chown system system /sys/class/leds/green/blink
+    chown system system /sys/class/leds/blue/blink
+    chown system system /sys/class/leds/red/brightness
+    chown system system /sys/class/leds/green/brightness
+    chown system system /sys/class/leds/blue/brightness
+
     # Allow access to emmc rawdump block partition and dload sysfs node
     chown root system /dev/block/bootdevice/by-name/rawdump
     chmod 0660 /dev/block/bootdevice/by-name/rawdump
@@ -192,6 +213,12 @@ on boot
 
     chown system system /sys/class/backlight/panel0-backlight/brightness
     chown system system /sys/class/backlight/panel0-backlight/max_brightness
+    chown system system /sys/class/backlight/panel1-backlight/brightness
+    chown system system /sys/class/backlight/panel1-backlight/max_brightness
+
+    # Allow access to UFS device attributes on sysfs
+    chown system system /sys/devices/platform/soc/1d84000.ufshc/auto_hibern8
+    chmod 0660 /sys/devices/platform/soc/1d84000.ufshc/auto_hibern8
 
     # Create directory used for display
     # for backward compatibilit
@@ -200,6 +227,10 @@ on boot
 
     # Create hvdcp_opti directory
     mkdir /mnt/vendor/persist/hvdcp_opti 0770 root system
+
+    #sensors log dir
+    mkdir /data/vendor/sensors
+    chown system system /data/vendor/sensors
 
 # msm specific files that need to be created on /data
 on post-fs-data
@@ -241,10 +272,20 @@ on post-fs-data
     #Create directory for tftp
     mkdir /data/vendor/tombstones 0771 system system
 
+    #Change ownership to system
+    chown system system /data/vendor/tombstones
+
     mkdir /data/vendor/ramdump 0771 root system
     mkdir /data/misc/bluetooth 0770 bluetooth bluetooth
     mkdir /data/vendor/bluetooth 0770 bluetooth bluetooth
     mkdir /data/vendor/ramdump/bluetooth 0770 bluetooth bluetooth
+
+    # Create directory for tftp
+    chown system system /data/vendor/tombstones
+    mkdir /data/vendor/tombstones/rfs 0771 system system
+    mkdir /data/vendor/tombstones/rfs/modem 0771 system system
+    mkdir /data/vendor/tombstones/rfs/lpass 0771 system system
+    mkdir /data/vendor/tombstones/rfs/slpi 0771 system system
 
     # Create the directories used by the Wireless subsystem
     mkdir /data/vendor/wifi 0771 wifi wifi
@@ -258,7 +299,7 @@ on post-fs-data
     #create netmgr log dir
     mkdir /data/vendor/netmgr 0770 radio radio
     chmod 0770 /data/vendor/netmgr
-
+    
     #create ipacm log dir
     mkdir /data/vendor/ipa 0770 radio radio
     chmod 0770 /data/vendor/ipa
@@ -266,6 +307,9 @@ on post-fs-data
     #Create QTI dir for logs
     mkdir /data/vendor/dataqti 0770 radio radio
     chmod 0770 /data/vendor/dataqti
+
+    # Create the directories used by WiGig Sensing
+    mkdir /data/vendor/sensing 0770 system wifi
 
     # Create the directories used by CnE subsystem
     mkdir /data/vendor/connectivity 0771 radio radio
@@ -315,7 +359,7 @@ on post-fs-data
     mkdir /data/vendor/location-partner/ppe 0770 gps gps
     mkdir /dev/socket/location 0770 gps gps
     mkdir /dev/socket/location/ehub 0770 gps gps
-
+    
     #Create directory from IMS services
     mkdir /data/shared 0755
     chown system system /data/shared
@@ -324,11 +368,15 @@ on post-fs-data
     mkdir /data/fota 0771
     chown system system /data/fota
 
+    #Create directories for wifihal services
+    mkdir /dev/socket/wifihal 0770 wifi wifi
+    chmod 2770 /dev/socket/wifihal
+
     # Create /data/time folder for time-services
     mkdir /data/vendor/time/ 0700 system system
 
     setprop vold.post_fs_data_done 1
-
+    
     #Create a folder for SRS to be able to create a usercfg file
     #mkdir /data/data/media 0770 media media
 
@@ -340,6 +388,8 @@ on post-fs-data
     mkdir /data/vendor/perfd 0770 root system
     chmod 2770 /data/vendor/perfd
     rm /data/vendor/perfd/default_values
+
+    mkdir /data/vendor/secure_element 0777 system system
 
     #Create IOP  deamon related dirs
     mkdir /data/vendor/iop 0700 root system
@@ -373,6 +423,10 @@ on post-fs-data
     mkdir /data/vendor/swap 0770 root system
     chmod 2770 /data/vendor/swap
 
+    # Processgroup
+    chown system system /acct/uid_*
+    chmod 0777 /acct/uid_*
+
     # Sensors
     chmod 0775 /persist/sensors
     chmod 0664 /persist/sensors/sensors_settings
@@ -391,7 +445,7 @@ on post-fs-data
 
     #Start move time data to /data/vendor once post-fs-data done
     start vendor.move_time_data
-
+    
 on property:vendor.hw.fm.init=*
     write /sys/module/radio_iris_transport/parameters/fmsmd_set ${vendor.hw.fm.init}
 
@@ -405,12 +459,15 @@ service iop /system/vendor/bin/iop
 
 on property:sys.boot_completed=1
     write /dev/kmsg "Boot completed "
-    #Reset read ahead for dm-0 and dm-1 to 512kb
+    #Reset read ahead for dm-0, dm-1 and dm-2 to 512kb
     write /sys/block/dm-0/queue/read_ahead_kb 512
     write /sys/block/dm-1/queue/read_ahead_kb 512
+    write /sys/block/dm-2/queue/read_ahead_kb 512
     #WDSP FW boot sysfs node used by STHAL
     chown media audio /sys/kernel/wdsp0/boot
     chown media audio /sys/kernel/wcd_cpe0/fw_name
+    chown system system /sys/class/power_supply/battery/battery_charging_enabled
+    chmod 0666 /sys/class/power_supply/battery/battery_charging_enabled
 
 on property:persist.vendor.radio.atfwd.start=false
     stop vendor.atfwd
@@ -462,6 +519,13 @@ service vendor.tftp_server /vendor/bin/tftp_server
    user root
    writepid /dev/cpuset/system-background/tasks
 
+service fm_dl /vendor/bin/init.qti.fm.sh
+    class late_start
+    user system
+    group system
+    disabled
+    oneshot
+
 on property:vendor.wc_transport.start_hci=true
     start vendor.start_hci_filter
 
@@ -486,8 +550,8 @@ service atfwd /vendor/bin/ATFWD-daemon
     user system
     group system radio
     writepid /dev/cpuset/system-background/tasks
-
-service vendor.netmgrd /system/vendor/bin/netmgrd
+    
+    service vendor.netmgrd /system/vendor/bin/netmgrd
     class main
     writepid /dev/cpuset/system-background/tasks
 
@@ -527,7 +591,7 @@ service vendor.sensors.qti /vendor/bin/sensors.qti
     user system
     group system
     writepid /dev/cpuset/system-background/tasks
-
+    
 on property:ro.vendor.use_data_netmgrd=false
     # netmgr not supported on specific target
     stop vendor.netmgrd
@@ -588,6 +652,10 @@ service qcom-post-boot /vendor/bin/init.qcom.post_boot.sh
 on property:sys.boot_completed=1
     start qcom-post-boot
 
+on property:init.svc.qcom-post-boot=stopped
+    # Set min gpu freq as 320mhz
+    write /sys/class/kgsl/kgsl-3d0/devfreq/min_freq 320000000
+
 on property:ro.data.large_tcp_window_size=true
     # Adjust socket buffer to enlarge TCP receive window for high bandwidth (e.g. DO-RevB)
     write /proc/sys/net/ipv4/tcp_adv_win_scale  2
@@ -601,6 +669,7 @@ service vendor.ril-daemon2 /vendor/bin/hw/rild -c 2
 service charger /sbin/chargeonlymode
     class charger
     group system graphics
+    capabilities SYS_BOOT
     seclabel u:r:healthd:s0
 
 service vendor.msm_irqbalance /vendor/bin/msm_irqbalance -f /system/vendor/etc/msm_irqbalance.conf
@@ -613,13 +682,19 @@ on charger
     setprop persist.sys.usb.config mass_storage
     load_system_props
     start qcom-post-boot
+    #Mixed HWC versions among targets
 
-#Mixed HWC versions among targets
 on property:init.svc.surfaceflinger=restarting
     stop  vendor.hwcomposer-2-1
     stop  vendor.hwcomposer-2-2
     start vendor.hwcomposer-2-1
     start vendor.hwcomposer-2-2
+    
+service time_daemon /vendor/bin/time_daemon
+    class main
+    user system
+    group system
+    capabilities SYS_TIME
 
 service vendor.move_time_data /system/bin/move_time_data.sh
     class main
@@ -633,8 +708,8 @@ service vendor.audio-hal-2-0 /vendor/bin/hw/android.hardware.audio@2.0-service
     class hal
     user audioserver
     # media gid needed for /dev/fm (radio) and for /data/misc/media (tee)
-    group audio camera drmrpc inet media mediadrm net_bt net_bt_admin net_bw_acct oem_2901 wakelock
-    capabilities BLOCK_SUSPEND
+    group audio camera drmrpc inet media mediadrm net_bt net_bt_admin net_bw_acct oem_2901 wakelock system
+    capabilities BLOCK_SUSPEND SYS_NICE
     ioprio rt 4
     writepid /dev/cpuset/foreground/tasks /dev/stune/foreground/tasks
     # audioflinger restarts itself when it loses connection with the hal
@@ -642,8 +717,17 @@ service vendor.audio-hal-2-0 /vendor/bin/hw/android.hardware.audio@2.0-service
     # an additional auto-restart from the init process isn't needed.
     oneshot
     interface android.hardware.audio@5.0::IDevicesFactory default
+    interface android.hardware.audio@4.0::IDevicesFactory default
     interface android.hardware.audio@2.0::IDevicesFactory default
+
+service vendor.power_off_alarm /vendor/bin/power_off_alarm
+    class core
+    group system
+    disabled
+    oneshot
+
+on property:dev.bootcomplete=1
+    setprop sys.io.scheduler "bfq"
 
 on property:apexd.status=ready
     mount none /system/etc/swcodec/ld.config.txt /apex/com.android.media.swcodec/etc/ld.config.txt bind
-    mount none /system/lib64/libashmemd_client.so /system/apex/com.android.media.swcodec/lib64/libashmemd_client.so
