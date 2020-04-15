@@ -23,6 +23,9 @@
 # Camera
 /data/vendor/qcam(/.*)?                         u:object_r:camera_socket:s0
 
+#DSP
+/dsp(/.*)?               u:object_r:adsprpcd_file:s0
+
 # Firmware
 /firmware(/.*)?          u:object_r:firmware_file:s0
 
